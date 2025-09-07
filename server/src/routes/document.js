@@ -4,9 +4,11 @@ const {
   createDocument,
   getDocument,
   updateDocument,
-  deleteDocument
+  deleteDocument,
+  getAllDocuments
 } = require("../controllers/documentController"); // Adjust path if your structure differs
 
+router.get("/", getAllDocuments); // Get all documents (must be before /:id)
 router.post("/", createDocument);
 router.get("/:id", getDocument);
 router.put("/:id", updateDocument);

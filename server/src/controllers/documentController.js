@@ -46,3 +46,16 @@ exports.deleteDocument = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+
+// Get all documents (for public access - shows recent documents)
+exports.getAllDocuments = async (req, res) => {
+  try {
+    const docs = await Document.find({})
+      .select('_id title updatedAt')
+      .sort({ updatedAt: -1 })
+      .limit(50);
+    res.json(docs);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};

@@ -1,11 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createEditor, Transforms, Editor, Element as SlateElement } from "slate";
 import { Slate, Editable, withReact, useSlate } from "slate-react";
+import { documentService } from "./api/documentService";
 
 /* ========= Storage ========= */
 const STORAGE_KEY = "docsmvp:document:v1";
 const TITLE_KEY = "docsmvp:title:v1";
+const DOC_ID_KEY = "docsmvp:documentId:v1";
 
+// Function to clear all local storage data
+function clearAllStorage() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TITLE_KEY);
+    localStorage.removeItem(DOC_ID_KEY);
+    console.log('Local storage cleared');
+  } catch (error) {
+    console.error('Failed to clear local storage:', error);
+  }
+}
+
+// Fallback localStorage functions for offline use
 function saveToStorage(title, value) {
   try {
     localStorage.setItem(TITLE_KEY, title || "Untitled document");
@@ -21,6 +36,44 @@ function loadFromStorage() {
     return { title, value: Array.isArray(parsed) ? parsed : null };
   } catch {
     return { title, value: null };
+  }
+}
+
+// Cloud storage functions
+async function saveToCloud(documentId, title, value) {
+  try {
+    if (documentId) {
+      return await documentService.updateDocument(documentId, title, value);
+    } else {
+      const newDoc = await documentService.createDocument(title, value);
+      localStorage.setItem(DOC_ID_KEY, newDoc._id);
+      return newDoc;
+    }
+  } catch (error) {
+    console.error('Failed to save to cloud:', error);
+    // Fallback to localStorage
+    saveToStorage(title, value);
+    throw error;
+  }
+}
+
+async function loadFromCloud() {
+  const documentId = localStorage.getItem(DOC_ID_KEY);
+  if (!documentId) {
+    return null;
+  }
+  
+  try {
+    const doc = await documentService.getDocument(documentId);
+    return {
+      _id: doc._id,
+      title: doc.title,
+      value: doc.content,
+      updatedAt: doc.updatedAt
+    };
+  } catch (error) {
+    console.error('Failed to load from cloud:', error);
+    return null;
   }
 }
 
@@ -191,31 +244,105 @@ const DEFAULT_VALUE = [
   },
 ];
 
-export default function DocsMVP() {
-  const editor = useMemo(() => withShortcuts(withReact(createEditor())), []);
+export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
+  const editor = useMemo(() => withShortcuts(withReact(createEditor())), [propDocumentId]);
 
   const [title, setTitle] = useState("Untitled document");
   const [value, setValue] = useState(() => DEFAULT_VALUE);
   const [savedAt, setSavedAt] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [documentId, setDocumentId] = useState(propDocumentId);
+  const [isLoading, setIsLoading] = useState(true);
+  const [saveError, setSaveError] = useState(null);
 
-  // Load from storage
+  // Load document on component mount
   useEffect(() => {
-    const { title: t, value: v } = loadFromStorage();
-    if (t) setTitle(t);
-    if (Array.isArray(v) && v.length > 0) setValue(v);
-  }, []);
+    async function loadDocument() {
+      setIsLoading(true);
+      
+      // Clear any old local storage data when component loads
+      clearAllStorage();
+      
+      try {
+        if (propDocumentId) {
+          // Load specific document by ID
+          console.log('📖 Loading document with ID:', propDocumentId);
+          const doc = await documentService.getDocument(propDocumentId);
+          console.log('📋 Loaded document:', doc);
+          
+          setTitle(doc.title);
+          
+          // Ensure content is valid Slate.js format
+          const validContent = Array.isArray(doc.content) && doc.content.length > 0 
+            ? doc.content 
+            : DEFAULT_VALUE;
+            
+          setValue(validContent);
+          setDocumentId(doc._id);
+          setSavedAt(new Date(doc.updatedAt));
+          
+          console.log('✅ Document state updated:', {
+            title: doc.title,
+            content: validContent,
+            documentId: doc._id
+          });
+        } else {
+          // Creating new document - keep defaults
+          setTitle("Untitled document");
+          setValue(DEFAULT_VALUE);
+          setDocumentId(null);
+          setSavedAt(null);
+        }
+      } catch (error) {
+        console.error('Failed to load document:', error);
+        // Fallback for new document
+        setTitle("Untitled document");
+        setValue(DEFAULT_VALUE);
+        setDocumentId(null);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    loadDocument();
+  }, [propDocumentId]);
 
-  // Autosave
+  // Cloud autosave
   useEffect(() => {
-    if (!isDirty) return;
-    const id = setTimeout(() => {
-      saveToStorage(title, value);
-      setSavedAt(new Date());
-      setIsDirty(false);
+    if (!isDirty || isLoading) return;
+    
+    console.log('⏰ Starting autosave timer...', { documentId, title, isDirty, isLoading });
+    
+    const id = setTimeout(async () => {
+      try {
+        console.log('💾 Attempting to save document...', { documentId, title });
+        setSaveError(null);
+        let savedDoc;
+        
+        if (documentId) {
+          // Update existing document
+          console.log('🔄 Updating existing document:', documentId);
+          savedDoc = await documentService.updateDocument(documentId, title, value);
+        } else {
+          // Create new document
+          console.log('✨ Creating new document');
+          savedDoc = await documentService.createDocument(title, value);
+          setDocumentId(savedDoc._id);
+          console.log('📝 New document ID set:', savedDoc._id);
+        }
+        
+        setSavedAt(new Date(savedDoc.updatedAt));
+        setIsDirty(false);
+        console.log('✅ Document saved successfully!');
+      } catch (error) {
+        setSaveError('Failed to save to cloud');
+        console.error('❌ Autosave failed:', error);
+      }
     }, 600);
+    
     return () => clearTimeout(id);
-  }, [title, value, isDirty]);
+  }, [title, value, isDirty, documentId, isLoading]);
+
 
   const renderElement = useCallback((p) => <Element {...p} />, []);
   const renderLeaf = useCallback((p) => <Leaf {...p} />, []);
@@ -243,12 +370,34 @@ export default function DocsMVP() {
     [plainText]
   );
 
+  // Don't render until we have valid content
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-gray-600">Loading document...</div>
+      </div>
+    );
+  }
+
+  // Ensure we always have valid Slate content
+  const editorValue = Array.isArray(value) && value.length > 0 ? value : DEFAULT_VALUE;
+  console.log('🎭 Editor value for Slate:', editorValue);
+  console.log('🎭 Original value state:', value);
+
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
       {/* App Bar */}
       <div className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            {onBackToList && (
+              <button
+                onClick={onBackToList}
+                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition"
+              >
+                ← Back
+              </button>
+            )}
             <div className="w-8 h-8 rounded-xl bg-gray-900 text-white grid place-items-center font-bold">
               G
             </div>
@@ -263,17 +412,22 @@ export default function DocsMVP() {
           </div>
           <div className="text-xs text-gray-500">
             {isDirty
-              ? "Saving…"
+              ? "Saving to cloud…"
+              : saveError
+              ? <span className="text-red-500">{saveError}</span>
               : savedAt
-              ? `Saved ${savedAt.toLocaleTimeString()}`
-              : "Autosave ready"}
+              ? `Cloud saved ${savedAt.toLocaleTimeString()}`
+              : documentId
+              ? "Cloud sync ready"
+              : "Ready to save"}
           </div>
         </div>
       </div>
 
       <Slate
         editor={editor}
-        initialValue={value}
+        key={documentId || 'new-document'}
+        initialValue={editorValue}
         onChange={(v) => {
           if (Array.isArray(v)) {
             setValue(v);
@@ -309,7 +463,8 @@ export default function DocsMVP() {
             />
           </div>
           <div className="text-center text-xs text-gray-400 mt-6">
-            Phase 1 MVP • Local-only, no backend • Slate.js
+            Real-time Collaborative Text Editor • Cloud Storage • Slate.js
+            {documentId && <div className="mt-1">Document ID: {documentId}</div>}
           </div>
         </div>
       </Slate>
