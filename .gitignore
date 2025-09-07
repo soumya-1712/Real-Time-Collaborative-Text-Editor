@@ -104,3 +104,6 @@ yarn.lock
 
 # Local development
 .cache/
+
+# Claude Code settings
+.claude/
