@@ -49,7 +49,7 @@ class DocumentService {
       // Try to parse as JSON (Slate.js format)
       parsedContent = JSON.parse(doc.content || '[]');
       console.log('✅ Parsed content as JSON:', parsedContent);
-    } catch (error) {
+    } catch {
       // If it's not JSON, convert plain text to Slate.js format
       console.log('🔄 Converting plain text to Slate.js format');
       parsedContent = [

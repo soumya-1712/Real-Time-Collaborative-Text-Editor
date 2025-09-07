@@ -21,61 +21,7 @@ function clearAllStorage() {
 }
 
 // Fallback localStorage functions for offline use
-function saveToStorage(title, value) {
-  try {
-    localStorage.setItem(TITLE_KEY, title || "Untitled document");
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(value || []));
-  } catch{}
-}
 
-function loadFromStorage() {
-  const title = localStorage.getItem(TITLE_KEY) || "Untitled document";
-  const raw = localStorage.getItem(STORAGE_KEY);
-  try {
-    const parsed = raw ? JSON.parse(raw) : null;
-    return { title, value: Array.isArray(parsed) ? parsed : null };
-  } catch {
-    return { title, value: null };
-  }
-}
-
-// Cloud storage functions
-async function saveToCloud(documentId, title, value) {
-  try {
-    if (documentId) {
-      return await documentService.updateDocument(documentId, title, value);
-    } else {
-      const newDoc = await documentService.createDocument(title, value);
-      localStorage.setItem(DOC_ID_KEY, newDoc._id);
-      return newDoc;
-    }
-  } catch (error) {
-    console.error('Failed to save to cloud:', error);
-    // Fallback to localStorage
-    saveToStorage(title, value);
-    throw error;
-  }
-}
-
-async function loadFromCloud() {
-  const documentId = localStorage.getItem(DOC_ID_KEY);
-  if (!documentId) {
-    return null;
-  }
-  
-  try {
-    const doc = await documentService.getDocument(documentId);
-    return {
-      _id: doc._id,
-      title: doc.title,
-      value: doc.content,
-      updatedAt: doc.updatedAt
-    };
-  } catch (error) {
-    console.error('Failed to load from cloud:', error);
-    return null;
-  }
-}
 
 /* ========= Toolbar ========= */
 function ToolbarButton({ onMouseDown, active, label, kbd }) {
@@ -154,7 +100,7 @@ function BlockDropdown() {
       if (isBlockActive(editor, opt.type, opt.level)) return opt;
     }
     return BLOCK_TYPES[0];
-  }, [editor.selection]);
+  }, [editor]);
 
   return (
     <select
@@ -245,7 +191,7 @@ const DEFAULT_VALUE = [
 ];
 
 export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
-  const editor = useMemo(() => withShortcuts(withReact(createEditor())), [propDocumentId]);
+  const editor = useMemo(() => withShortcuts(withReact(createEditor())), []);
 
   const [title, setTitle] = useState("Untitled document");
   const [value, setValue] = useState(() => DEFAULT_VALUE);
