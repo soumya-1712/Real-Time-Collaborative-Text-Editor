@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createEditor, Transforms, Editor, Element as SlateElement } from "slate";
 import { Slate, Editable, withReact, useSlate } from "slate-react";
 import { documentService } from "./api/documentService";
+import io from "socket.io-client";
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 /* ========= Storage ========= */
 const STORAGE_KEY = "docsmvp:document:v1";
@@ -19,9 +22,6 @@ function clearAllStorage() {
     console.error('Failed to clear local storage:', error);
   }
 }
-
-// Fallback localStorage functions for offline use
-
 
 /* ========= Toolbar ========= */
 function ToolbarButton({ onMouseDown, active, label, kbd }) {
@@ -192,6 +192,7 @@ const DEFAULT_VALUE = [
 
 export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
   const editor = useMemo(() => withShortcuts(withReact(createEditor())), []);
+  const [socket, setSocket] = useState(null);
 
   const [title, setTitle] = useState("Untitled document");
   const [value, setValue] = useState(() => DEFAULT_VALUE);
@@ -201,24 +202,54 @@ export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
   const [isLoading, setIsLoading] = useState(true);
   const [saveError, setSaveError] = useState(null);
 
+  // Socket.IO connection
+  useEffect(() => {
+    const s = io(SOCKET_URL);
+    setSocket(s);
+
+    s.on("connect", () => {
+      console.log("✅ Socket connected:", s.id);
+      if (documentId) {
+        s.emit("join_document", documentId);
+      }
+    });
+
+    s.on("receive_changes", (changes) => {
+      // Naive update: replace entire document content
+      // This can be improved with operational transforms to be more efficient
+      // and preserve cursor position.
+      if (JSON.stringify(editor.children) !== JSON.stringify(changes)) {
+        const { selection } = editor;
+        Transforms.deselect(editor);
+        editor.children = changes;
+        Transforms.select(editor, selection);
+      }
+    });
+
+    s.on("disconnect", () => {
+      console.log("❌ Socket disconnected");
+    });
+
+    return () => {
+      s.disconnect();
+    };
+  }, [documentId, editor]);
+
   // Load document on component mount
   useEffect(() => {
     async function loadDocument() {
       setIsLoading(true);
       
-      // Clear any old local storage data when component loads
       clearAllStorage();
       
       try {
         if (propDocumentId) {
-          // Load specific document by ID
           console.log('📖 Loading document with ID:', propDocumentId);
           const doc = await documentService.getDocument(propDocumentId);
           console.log('📋 Loaded document:', doc);
           
           setTitle(doc.title);
           
-          // Ensure content is valid Slate.js format
           const validContent = Array.isArray(doc.content) && doc.content.length > 0 
             ? doc.content 
             : DEFAULT_VALUE;
@@ -233,7 +264,6 @@ export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
             documentId: doc._id
           });
         } else {
-          // Creating new document - keep defaults
           setTitle("Untitled document");
           setValue(DEFAULT_VALUE);
           setDocumentId(null);
@@ -241,7 +271,6 @@ export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
         }
       } catch (error) {
         console.error('Failed to load document:', error);
-        // Fallback for new document
         setTitle("Untitled document");
         setValue(DEFAULT_VALUE);
         setDocumentId(null);
@@ -257,29 +286,23 @@ export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
   useEffect(() => {
     if (!isDirty || isLoading) return;
     
-    console.log('⏰ Starting autosave timer...', { documentId, title, isDirty, isLoading });
-    
     const id = setTimeout(async () => {
       try {
-        console.log('💾 Attempting to save document...', { documentId, title });
         setSaveError(null);
         let savedDoc;
         
         if (documentId) {
-          // Update existing document
-          console.log('🔄 Updating existing document:', documentId);
           savedDoc = await documentService.updateDocument(documentId, title, value);
         } else {
-          // Create new document
-          console.log('✨ Creating new document');
           savedDoc = await documentService.createDocument(title, value);
           setDocumentId(savedDoc._id);
-          console.log('📝 New document ID set:', savedDoc._id);
+          if (socket) {
+            socket.emit("join_document", savedDoc._id);
+          }
         }
         
         setSavedAt(new Date(savedDoc.updatedAt));
         setIsDirty(false);
-        console.log('✅ Document saved successfully!');
       } catch (error) {
         setSaveError('Failed to save to cloud');
         console.error('❌ Autosave failed:', error);
@@ -287,7 +310,7 @@ export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
     }, 600);
     
     return () => clearTimeout(id);
-  }, [title, value, isDirty, documentId, isLoading]);
+  }, [title, value, isDirty, documentId, isLoading, socket]);
 
 
   const renderElement = useCallback((p) => <Element {...p} />, []);
@@ -316,7 +339,6 @@ export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
     [plainText]
   );
 
-  // Don't render until we have valid content
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -325,10 +347,7 @@ export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
     );
   }
 
-  // Ensure we always have valid Slate content
   const editorValue = Array.isArray(value) && value.length > 0 ? value : DEFAULT_VALUE;
-  console.log('🎭 Editor value for Slate:', editorValue);
-  console.log('🎭 Original value state:', value);
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
@@ -375,9 +394,12 @@ export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
         key={documentId || 'new-document'}
         initialValue={editorValue}
         onChange={(v) => {
-          if (Array.isArray(v)) {
+          if (JSON.stringify(v) !== JSON.stringify(editor.children)) {
             setValue(v);
             setIsDirty(true);
+            if (socket && documentId) {
+              socket.emit("send_changes", { documentId, changes: v });
+            }
           }
         }}
       >
@@ -394,7 +416,7 @@ export default function DocsMVP({ documentId: propDocumentId, onBackToList }) {
 
         {/* Page */}
         <div className="max-w-2xl mx-auto px-4 py-8">
-          <div className="bg-white shadow-xl rounded-2xl p-12 mx-auto min-h-[80vh] w-full">
+          <div className="bg-white shadow-xl rounded-2xl p-12 mx-auto min-h-[80vh] w-full relative">
             <Editable
               renderElement={renderElement}
               renderLeaf={renderLeaf}
