@@ -8,21 +8,22 @@ export default function DocumentList({ onSelectDocument, onNewDocument }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    async function fetchDocuments() {
+    const fetchDocuments = async () => {
       try {
-        setIsLoading(true);
-        const docs = await documentService.getAllDocuments();
-        setDocuments(docs);
+        const fetchedDocuments = await documentService.getAllDocuments();
+        setDocuments(fetchedDocuments);
       } catch (err) {
-        setError('Failed to fetch documents. Please make sure the server is running.');
+        setError('Failed to fetch documents. Please try again later.');
         console.error(err);
       } finally {
         setIsLoading(false);
       }
-    }
+    };
 
     fetchDocuments();
   }, []);
+
+  
 
   if (isLoading) {
     return <div className="text-center p-8">Loading documents...</div>;
@@ -76,3 +77,4 @@ export default function DocumentList({ onSelectDocument, onNewDocument }) {
     </div>
   );
 }
+

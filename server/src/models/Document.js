@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 
 const documentSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  content: { type: mongoose.Schema.Types.Mixed, default: '' }, // Changed type to Mixed
+  content: { type: mongoose.Schema.Types.Mixed, default: "" }, // Changed type to Mixed
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
