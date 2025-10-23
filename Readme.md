@@ -232,8 +232,8 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ## 👥 Authors
 
-- **Pritesh** - *Initial work* - [@pritesh0089](https://github.com/pritesh0089)
-- **Contributors** - Thanks to all contributors who helped build this project
+- **Soumya** - [@soumya-1712](https://github.com/soumya-1712)
+- **Pritesh** - [@pritesh0089](https://github.com/pritesh0089)
 
 ## 🙏 Acknowledgments
 
