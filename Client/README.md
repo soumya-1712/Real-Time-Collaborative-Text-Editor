@@ -1,12 +1,28 @@
-# React + Vite
+# Plain Text Editor Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is a minimal plain text editor client that allows you to create, view, and edit documents.
 
-Currently, two official plugins are available:
+## Running the client
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1.  Navigate to the `Client` directory.
+2.  Install dependencies:
 
-## Expanding the ESLint configuration
+    ```bash
+    npm install
+    ```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+3.  Start the development server:
+
+    ```bash
+    npm run dev
+    ```
+
+    The application will be available at the default Vite port (usually `http://localhost:5173`).
+
+## API URL
+
+The client expects the `VITE_API_URL` environment variable to be set to the base URL of the backend API. This can be done by creating a `.env.local` file in the `Client` directory with the following content:
+
+```
+VITE_API_URL=http://localhost:3000
+```
