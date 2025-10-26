@@ -8,18 +8,11 @@
     "dev": "nodemon src/server.js"
   },
   "dependencies": {
-    "@teamwork/websocket-json-stream": "^2.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^4.19.2",
     "mongoose": "^8.18.0",
-    "ot-json0": "^1.1.0",
-    "sharedb": "^4.1.0",
-    "sharedb-mongo": "^4.0.2",
-    "slate": "^0.118.1",
-    "slate-ot": "^0.0.4",
-    "socket.io": "^4.8.1",
-    "ws": "^8.18.0"
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

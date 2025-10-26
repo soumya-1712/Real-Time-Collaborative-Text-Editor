@@ -1,16 +1,66 @@
-// models/Document.js
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
 
-const documentSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  content: { type: mongoose.Schema.Types.Mixed, default: "" }, // Changed type to Mixed
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+const OpsLogSchema = new mongoose.Schema({
+  type: {
+    type: String,
+    enum: ['insert', 'delete'],
+    required: true,
+  },
+  pos: {
+    type: Number,
+    required: true,
+  },
+  text: {
+    type: String,
+  },
+  length: {
+    type: Number,
+  },
+  clientId: {
+    type: String,
+    required: true,
+  },
+  baseRevision: {
+    type: Number,
+    required: true,
+  },
+  appliedRevision: {
+    type: Number,
+    required: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
-// Create an index on updatedAt
-documentSchema.index({ updatedAt: 1 }); // 1 for ascending order
+const DocumentSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      default: 'Untitled document',
+    },
+    content: {
+      type: String,
+      default: '',
+    },
+    revision: {
+        type: Number,
+        default: 0,
+    },
+    opsLog: [OpsLogSchema],
+  },
+  { timestamps: true }
+);
 
-module.exports = mongoose.model("Document", documentSchema);
+DocumentSchema.pre('save', function (next) {
+    if (this.opsLog.length > 200) {
+        this.opsLog = this.opsLog.slice(this.opsLog.length - 200);
+    }
+    next();
+});
 
+const Document = mongoose.model('Document', DocumentSchema);
 
+export default Document;

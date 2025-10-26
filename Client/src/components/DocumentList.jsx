@@ -1,80 +1,73 @@
+import React, { useState, useEffect } from 'react';
+import { getDocuments, createDocument, deleteDocument } from '../api/documentService';
 
-import React, { useEffect, useState } from 'react';
-import { documentService } from '../api/documentService';
-
-export default function DocumentList({ onSelectDocument, onNewDocument }) {
+const DocumentList = ({ onSelectDocument }) => {
   const [documents, setDocuments] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchDocuments = async () => {
-      try {
-        const fetchedDocuments = await documentService.getAllDocuments();
-        setDocuments(fetchedDocuments);
-      } catch (err) {
-        setError('Failed to fetch documents. Please try again later.');
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchDocuments();
   }, []);
 
-  
+  const fetchDocuments = () => {
+    setLoading(true);
+    getDocuments()
+      .then(docs => {
+        setDocuments(docs);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  };
 
-  if (isLoading) {
-    return <div className="text-center p-8">Loading documents...</div>;
+  const handleNewDocument = () => {
+    createDocument({ title: 'Untitled document' })
+      .then(newDoc => {
+        fetchDocuments();
+        onSelectDocument(newDoc._id);
+      })
+      .catch(err => {
+        setError(err.message);
+      });
+  };
+
+  const handleDelete = (id) => {
+    deleteDocument(id)
+      .then(() => {
+        fetchDocuments();
+      })
+      .catch(err => {
+        setError(err.message);
+      });
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
   }
 
   if (error) {
-    return <div className="text-center p-8 text-red-500">{error}</div>;
+    return <div>Error: {error}</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-3xl mx-auto py-8 px-4">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">My Documents</h1>
-          <button
-            onClick={onNewDocument}
-            className="px-4 py-2 bg-gray-900 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 transition"
-          >
-            + New Document
-          </button>
-        </div>
-        
-        <div className="bg-white shadow-xl rounded-2xl overflow-hidden">
-          {documents.length > 0 ? (
-            <ul>
-              {documents.map((doc) => (
-                <li key={doc._id} className="border-b last:border-b-0">
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onSelectDocument(doc._id);
-                    }}
-                    className="block p-6 hover:bg-gray-50 transition"
-                  >
-                    <h2 className="font-semibold text-lg text-gray-900 truncate">{doc.title || 'Untitled document'}</h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Last updated on {new Date(doc.updatedAt).toLocaleDateString()}
-                    </p>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="p-8 text-center text-gray-500">
-              You don't have any documents yet.
+    <div className="document-list">
+      <button className="btn" onClick={handleNewDocument}>New Document</button>
+      <div>
+        {documents.map(doc => (
+          <div key={doc._id} className="doc-row">
+            <div className="doc-meta" onClick={() => onSelectDocument(doc._id)}>
+              <span>{doc.title}</span>
+              <small>Updated: {new Date(doc.updatedAt).toLocaleString()}</small>
             </div>
-          )}
-        </div>
+            <button className="doc-delete" onClick={() => handleDelete(doc._id)}>Delete</button>
+          </div>
+        ))}
       </div>
     </div>
   );
-}
+};
 
+export default DocumentList;

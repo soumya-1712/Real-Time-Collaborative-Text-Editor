@@ -1,39 +1,34 @@
 import React, { useState } from 'react';
 import DocumentList from './components/DocumentList';
-import DocsMVP from './DocsMVP';
+import DocumentEditor from './components/DocumentEditor';
 
-export default function App() {
-  const [currentView, setCurrentView] = useState('list'); // 'list' or 'editor'
-  const [currentDocumentId, setCurrentDocumentId] = useState(null);
+const App = () => {
+  const [currentView, setCurrentView] = useState('list');
+  const [documentId, setDocumentId] = useState(null);
 
-  const handleSelectDocument = (documentId) => {
-    setCurrentDocumentId(documentId);
+  const handleSelectDocument = (id) => {
+    setDocumentId(id);
     setCurrentView('editor');
   };
 
-  const handleNewDocument = () => {
-    setCurrentDocumentId(null);
-    setCurrentView('editor');
-  };
-
-  const handleBackToList = () => {
+  const handleBack = () => {
+    setDocumentId(null);
     setCurrentView('list');
-    setCurrentDocumentId(null);
   };
 
-  if (currentView === 'editor') {
-    return (
-      <DocsMVP 
-        documentId={currentDocumentId} 
-        onBackToList={handleBackToList}
-      />
-    );
-  }
 
   return (
-    <DocumentList 
-      onSelectDocument={handleSelectDocument}
-      onNewDocument={handleNewDocument}
-    />
+    <div className="container">
+      {currentView === 'list' ? (
+        <DocumentList onSelectDocument={handleSelectDocument} />
+      ) : (
+        <DocumentEditor
+          documentId={documentId}
+          onBack={handleBack}
+        />
+      )}
+    </div>
   );
-}
+};
+
+export default App;
